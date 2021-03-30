@@ -65,6 +65,7 @@ if __name__ == "__main__":
         seed=1,
         use_cuda=torch.cuda.is_available(),
         run_id=os.getenv("RUN_ID"),
+        **tools.git_status(),
     )
 
     Path("config.json").write_text(json.dumps(config))
