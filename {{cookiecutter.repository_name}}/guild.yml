@@ -45,10 +45,17 @@
       flags-import: all
       output-scalars: off
       requires:
+        - sourcecode-symlink
         - notebooks
+        - splits
         - model
         - prepare
-        - splits
+    clean-notebook:
+      main: operations.clean_notebook
+      flags-import: all
+      output-scalars: off
+      requires:
+        - notebooks
   resources:
     model:
       name: model
@@ -66,3 +73,7 @@
     notebooks:
       sources:
         - notebooks
+    sourcecode-symlink:
+      sources:
+        - {{cookiecutter.package_name}}
+

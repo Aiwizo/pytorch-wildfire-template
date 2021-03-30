@@ -9,6 +9,8 @@ build/
 _build/
 *.pyc
 .test-template/
+# used only for development anyway (black etc)
+.python-version
 
 AUTHORS
 ChangeLog

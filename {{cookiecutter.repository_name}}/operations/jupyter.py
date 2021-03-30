@@ -1,28 +1,30 @@
 import argparse
 import subprocess
-import os
 from pathlib import Path
+from notebook.services.contents.filemanager import FileContentsManager
+
+
+def jupyter(notebook_name, port):
+    notebook_path = Path("notebooks") / notebook_name
+    if not notebook_path.exists():
+        FileContentsManager().new(path=notebook_path.as_posix())
+
+    try:
+        subprocess.run(["jupyter", "notebook", notebook_path.as_posix()])
+    except KeyboardInterrupt:
+        print()
+        print("KeyboardInterrupt, exporting HTML before quitting")
+    subprocess.run(["jupyter", "nbconvert", "--to", "html", notebook_path.as_posix()])
+    html_path = notebook_path.with_suffix(".html")
+    html_path.rename(html_path.name)  # move to current operation directory
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--notebook", type=str, required=True)
     parser.add_argument("--port", type=int, default=8888)
     args = parser.parse_args()
-
-    working_dir = f"{os.environ['GUILD_HOME']}/runs/{os.environ['RUN_ID']}"
-    command = f"jupyter notebook --port={args.port}"
-
-    if "PYTHONSTARTUP" in os.environ and Path(os.environ["PYTHONSTARTUP"]).exists():
-        python_startup_script = (
-            Path(os.environ["PYTHONSTARTUP"]).open("r").read() + "\n"
-        )
-    else:
-        python_startup_script = ""
-
-    Path("change-dir.py").write_text(
-        f"{python_startup_script}import os\nos.chdir('{working_dir}')"
+    jupyter(
+        notebook_name=args.notebook,
+        port=args.port,
     )
-
-    os.environ["PYTHONSTARTUP"] = f"{os.getcwd()}/change-dir.py"
-
-    subprocess.run(command, shell=True)

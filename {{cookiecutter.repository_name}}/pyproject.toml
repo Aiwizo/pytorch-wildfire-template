@@ -7,21 +7,19 @@ readme = "README.rst"
 repository = "{{cookiecutter.repository}}"
 # some classifiers are added automatically, see https://python-poetry.org/docs/pyproject/#classifiers
 classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Environment :: Other Environment",
-    "License :: OSI Approved :: Apache Software License",
-    "Operating System :: OS Independent",
-    "Intended Audience :: Developers",
-    "Intended Audience :: Science/Research",
-    "Topic :: Scientific/Engineering",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Topic :: Software Development",
-    "Topic :: Software Development :: Libraries",
-    "Topic :: Software Development :: Libraries :: Python Modules"
+  "Development Status :: 3 - Alpha",
+  "Environment :: Other Environment",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-packages = [
-    { include = "{{cookiecutter.package_name}}" },
-]
+packages = [{ include = "{{cookiecutter.package_name}}" }]
 
 [tool.poetry.dependencies]
 python = "^3.7"
@@ -43,6 +41,7 @@ notebook = "5.7.8"
 jupyter_contrib_nbextensions = "0.5.1"
 ipykernel = "^5.4.3"
 ipywidgets = "^7.6.3"
+cleannb = { git = "https://github.com/KwatME/CleanNB.py.git", rev = "8abfa6ad" }
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
