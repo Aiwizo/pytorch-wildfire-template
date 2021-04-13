@@ -7,29 +7,30 @@ import torch
 import torch.utils.tensorboard
 import lantern
 
-from {{cookiecutter.package_name}} import datastream, architecture, metrics, tools
+from {{cookiecutter.package_name}} import datastream, Model, metrics, tools
 
 
 def evaluate(config):
     torch.set_grad_enabled(False)
-    device = torch.device("cuda" if config["use_cuda"] else "cpu")
+    device = torch.device("cuda" if config["cuda"] else "cpu")
 
-    model = architecture.Model().to(device)
+    model = Model().to(device)
 
-    if Path("model").exists():
-        print("Loading model checkpoint")
-        model.load_state_dict(torch.load("model/model.pt"))
+    print("Loading model checkpoint")
+    model.load_state_dict(torch.load("model/model.pt"))
 
+    evaluate_datastreams = datastream.evaluate_datastreams()
     evaluate_data_loaders = {
         f"evaluate_{name}": (
-            datastream.map(architecture.StandardizedImage.from_example).data_loader(
+            evaluate_datastreams[name]
+            .map(model.StandardizedImage.from_example)
+            .data_loader(
                 batch_size=config["eval_batch_size"],
                 collate_fn=tools.unzip,
                 num_workers=config["n_workers"],
             )
         )
-        for name, datastream in datastream.evaluate_datastreams().items()
-        if "mini" not in name
+        for name in ["train", "early_stopping", "compare"]
     }
 
     tensorboard_logger = torch.utils.tensorboard.SummaryWriter()
@@ -37,19 +38,19 @@ def evaluate(config):
         name: metrics.evaluate_metrics() for name in evaluate_data_loaders
     }
 
-    for name, data_loader in evaluate_data_loaders.items():
-        for examples, standardized_images in tqdm(data_loader, desc=name, leave=False):
+    for dataset_name, data_loader in evaluate_data_loaders.items():
+        for standardized_images, examples in lantern.ProgressBar(
+            data_loader, dataset_name
+        ):
             with lantern.module_eval(model):
                 predictions = model.predictions(standardized_images)
-                loss = predictions.loss(examples)
 
-            evaluate_metrics[name]["loss"].update_(loss)
-            evaluate_metrics[name]["accuracy"].update_(examples, predictions)
+            evaluate_metrics[dataset_name]["pairs"].update_(predictions, examples)
 
-        for metric_name, metric in evaluate_metrics[name].items():
-            metric.log(tensorboard_logger, name, metric_name)
+        for metric in evaluate_metrics[dataset_name].values():
+            metric.log_dict(tensorboard_logger, dataset_name)
 
-        print(lantern.MetricTable(name, evaluate_metrics[name]))
+        print(lantern.MetricTable(dataset_name, evaluate_metrics[dataset_name]))
 
     tensorboard_logger.close()
 
@@ -57,13 +58,12 @@ def evaluate(config):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--eval_batch_size", type=int, default=64)
-    parser.add_argument("--n_workers", default=2, type=int)
+    parser.add_argument("--n_workers", type=int, default=2)
+    parser.add_argument("--cuda", type=bool, choices=[True, False], default=True)
     args = parser.parse_args()
 
     config = vars(args)
     config.update(
-        seed=1,
-        use_cuda=torch.cuda.is_available(),
         run_id=os.getenv("RUN_ID"),
     )
 

@@ -2,7 +2,7 @@ Pytorch Lantern Template
 ========================
 
 Project template for use with
-`pytorch lantern <https://github.com/Aiwizo/pytorch-lantern>`__ .
+`pytorch-lantern <https://github.com/Aiwizo/pytorch-lantern>`__ .
 
 
 Usage
@@ -33,7 +33,7 @@ What each directory in the newly-initialized project contains:
 ``problem``
 ~~~~~~~~~~~
 
-Functions to supply the data in a natural (human-readable) form. No model/architecture specific functionality.
+Functions to supply the data in a natural (human-readable) form. No model specific functionality.
 
 -  Splits data in train / compare
 -  Works with the natural format of the examples
@@ -48,7 +48,7 @@ Adapts the data from ``problem`` for training and evaluation. Keeps data in a na
 -  Works with the natural format of the examples just like problem
 -  Create informative batches (oversample, stratify, etc)
 
-``architecture``
+``model``
 ~~~~~~~~~~~~~~~~
 
 Contains the model used to solve the problem as well as functions to convert the data between human-readable to model-readable.
@@ -74,16 +74,31 @@ Utility functions that don't fit elsewhere.
 
 Operations available from the `guild.ai <https://guild.ai/>`__ CLI.
 
-Testing
--------
+Development
+-----------
+
+Setup test environment
 
 .. code-block:: shell
 
-    # use poetry and cookiecutter from inside the poetry environment
-    poetry shell
-    # initialize a fake repo from the template under .test-template
-    test/create.sh
-    # run the below in any order you like
-    test/lint.sh
-    test/run.sh
-    test/test.sh
+    ./test/create.sh
+
+Download and prepare dataset
+
+.. code-block:: shell
+
+    ./test/prepare.sh
+
+Run tests in any order
+
+.. code-block:: shell
+
+    ./test/run.sh
+    ./test/test.sh
+    ./test/lint.sh
+
+It can be useful to chain create and run when developing
+
+.. code-block:: shell
+
+    ./test/run.sh && ./test/run.sh

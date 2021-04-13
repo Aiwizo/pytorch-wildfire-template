@@ -7,7 +7,7 @@ set -o nounset
 
 mkdir -p "$TEST_DIR" && cd "$TEST_DIR"
 
-cookiecutter ../. \
+poetry run cookiecutter ../. \
     --no-input --overwrite-if-exists \
     repository_name="$REPOSITORY_NAME"
 

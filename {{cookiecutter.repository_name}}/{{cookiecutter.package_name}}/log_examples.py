@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def log_examples(logger, name, epoch, examples, predictions):
+def log_examples(logger, name, epoch, predictions, examples):
     logger.add_images(
         f"{name}/predictions",
         np.stack(

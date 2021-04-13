@@ -2,13 +2,13 @@ from PIL import Image, ImageDraw
 import numpy as np
 import torch
 import torch.nn.functional as F
-from lantern import FunctionalBase
+from lantern import FunctionalBase, Tensor
 
 from {{cookiecutter.package_name}} import problem, tools
 
 
 class Prediction(FunctionalBase):
-    logits: torch.Tensor
+    logits: Tensor.short("C")
 
     class Config:
         arbitrary_types_allowed = True
@@ -46,7 +46,7 @@ class Prediction(FunctionalBase):
 
 
 class PredictionBatch(FunctionalBase):
-    logits: torch.Tensor
+    logits: Tensor.short("NC")
 
     class Config:
         arbitrary_types_allowed = True
@@ -83,30 +83,5 @@ class PredictionBatch(FunctionalBase):
             self.stack_class_indices(examples),
         )
 
-    def cpu(self):
-        return PredictionBatch(
-            **{
-                name: (
-                    value.cpu()
-                    if isinstance(value, torch.Tensor)
-                    else [v.cpu() for v in value]
-                    if type(value) == list
-                    else value
-                )
-                for name, value in super().__iter__()
-            }
-        )
-
-    def detach(self):
-        return PredictionBatch(
-            **{
-                name: (
-                    value.detach()
-                    if isinstance(value, torch.Tensor)
-                    else [v.detach() for v in value]
-                    if type(value) == list
-                    else value
-                )
-                for name, value in super().__iter__()
-            }
-        )
+    def accuracy(self, examples):
+        return self.logits.argmax(dim=1) == self.stack_class_indices(examples)

@@ -1,34 +1,34 @@
-import numpy as np
+import pandas as pd
 import lantern
 
 
 def train_metrics():
     return dict(
-        loss=lantern.ReduceMetric(lambda state, loss: loss.item()),
-        accuracy=lantern.ReduceMetric(
-            reduce_fn=lambda rolling_mean, examples, predictions: (
-                0.9 * rolling_mean
-                + 0.1
-                * np.mean(
-                    [
-                        example.class_name == prediction.class_name
-                        for example, prediction in zip(examples, predictions)
-                    ]
-                )
-            ),
-            initial_state=0,
+        loss=lantern.Metric().reduce(lambda state, loss: dict(loss=loss.item())),
+        pairs=lantern.Metric().reduce(
+            lambda state, predictions, examples: dict(
+                accuracy=predictions.accuracy(examples).float().mean().item()
+            )
         ),
     )
 
 
 def evaluate_metrics():
     return dict(
-        loss=lantern.MapMetric(lambda loss: loss.item()),
-        accuracy=lantern.MapMetric(
-            map_fn=lambda examples, predictions: [
-                example.class_name == prediction.class_name
-                for example, prediction in zip(examples, predictions)
-            ],
-            compute_fn=lambda results: np.mean(np.concatenate(results)),
+        pairs=(
+            lantern.Metric()
+            .map(
+                lambda predictions, examples: dict(
+                    loss=predictions.loss(examples),
+                    accuracy=predictions.accuracy(examples),
+                )
+            )
+            .map(
+                lambda metrics: {
+                    name: value.detach().cpu() for name, value in metrics.items()
+                }
+            )
+            .aggregate(lambda dicts: pd.concat(list(map(pd.DataFrame, dicts))))
+            .map(lambda df: df.mean(axis=0).to_dict())
         ),
     )

@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from lantern import ModuleCompose, module_device
 
-from {{cookiecutter.package_name}} import architecture
+from {{cookiecutter.package_name}} import model
 
 
 class Model(nn.Module):
@@ -27,9 +27,13 @@ class Model(nn.Module):
         )
 
     def forward(self, prepared):
-        return architecture.PredictionBatch(logits=self.logits(prepared))
+        return model.PredictionBatch(logits=self.logits(prepared))
 
-    def predictions(self, features: List[architecture.StandardizedImage]):
+    def predictions(self, features: List[model.StandardizedImage]):
         return self.forward(
             torch.stack([feature.data for feature in features]).to(module_device(self))
         )
+
+
+Model.StandardizedImage = model.StandardizedImage
+Model.PredictionBatch = model.PredictionBatch

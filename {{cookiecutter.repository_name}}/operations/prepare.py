@@ -34,6 +34,7 @@ def save_labels(dataset, image_directory, csv_path):
                 lambda index: image_path(image_directory, index)
             ),
         )[["index", "image_path", "class_name"]]
+        .sample(n=128)
         .to_csv(csv_path)
     )
 

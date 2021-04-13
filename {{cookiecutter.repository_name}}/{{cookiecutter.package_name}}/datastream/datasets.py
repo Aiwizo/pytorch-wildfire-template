@@ -28,5 +28,5 @@ def mini_subset(dataset, n=256):
         key_column="index",
         proportions=dict(big=1 - small_proportion, small=small_proportion),
         stratify_column="class_name",
-        seed=1,
+        seed=31415,
     )["small"]

@@ -6,11 +6,10 @@ from pathlib import Path
 import torch
 import torch.utils.tensorboard
 import lantern
-from lantern import set_seeds, worker_init_fn
 
 from {{cookiecutter.package_name}} import (
     datastream,
-    architecture,
+    Model,
     metrics,
     log_examples,
     tools,
@@ -19,10 +18,10 @@ from {{cookiecutter.package_name}} import (
 
 def train(config):
     torch.set_grad_enabled(False)
-    device = torch.device("cuda" if config["use_cuda"] else "cpu")
-    set_seeds(config["seed"])
+    device = torch.device("cuda" if config["cuda"] else "cpu")
+    lantern.set_seeds(config["seed"])
 
-    model = architecture.Model().to(device)
+    model = Model().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=config["learning_rate"])
 
     if Path("model").exists():
@@ -33,27 +32,29 @@ def train(config):
 
     train_data_loader = (
         datastream.TrainDatastream()
-        .map(architecture.StandardizedImage.from_example)
+        .map(model.StandardizedImage.from_example)
         .data_loader(
             batch_size=config["batch_size"],
             n_batches_per_epoch=config["n_batches_per_epoch"],
             collate_fn=tools.unzip,
             num_workers=config["n_workers"],
-            worker_init_fn=worker_init_fn(config["seed"]),
+            worker_init_fn=lantern.worker_init_fn(config["seed"]),
             persistent_workers=(config["n_workers"] >= 1),
         )
     )
 
+    evaluate_datastreams = datastream.evaluate_datastreams()
     evaluate_data_loaders = {
         f"evaluate_{name}": (
-            datastream.map(architecture.StandardizedImage.from_example).data_loader(
+            evaluate_datastreams[name]
+            .map(model.StandardizedImage.from_example)
+            .data_loader(
                 batch_size=config["eval_batch_size"],
                 collate_fn=tools.unzip,
                 num_workers=config["n_workers"],
             )
         )
-        for name, datastream in datastream.evaluate_datastreams().items()
-        if "mini" in name
+        for name in ["mini_train", "early_stopping"]
     }
 
     tensorboard_logger = torch.utils.tensorboard.SummaryWriter(log_dir="tb")
@@ -62,7 +63,7 @@ def train(config):
 
     for epoch in lantern.Epochs(config["max_epochs"]):
 
-        for examples, standardized_images in lantern.ProgressBar(
+        for standardized_images, examples in lantern.ProgressBar(
             train_data_loader, "train", train_metrics
         ):
             with lantern.module_train(model), torch.enable_grad():
@@ -73,35 +74,35 @@ def train(config):
             optimizer.zero_grad()
 
             train_metrics["loss"].update_(loss)
-            train_metrics["accuracy"].update_(examples, predictions)
+            train_metrics["pairs"].update_(predictions, examples)
 
-            for name, metric in train_metrics.items():
-                metric.log(tensorboard_logger, "train", name, epoch)
+            for metric in train_metrics.values():
+                metric.log_dict(tensorboard_logger, "train", epoch)
 
         print(lantern.MetricTable("train", train_metrics))
-        log_examples(tensorboard_logger, "train", epoch, examples, predictions)
+        log_examples(tensorboard_logger, "train", epoch, predictions, examples)
 
         evaluate_metrics = {
             name: metrics.evaluate_metrics() for name in evaluate_data_loaders
         }
 
-        for name, data_loader in evaluate_data_loaders.items():
-            for examples, standardized_images in lantern.ProgressBar(data_loader, name):
+        for dataset_name, data_loader in evaluate_data_loaders.items():
+            for standardized_images, examples in lantern.ProgressBar(
+                data_loader, dataset_name
+            ):
                 with lantern.module_eval(model):
                     predictions = model.predictions(standardized_images)
-                    loss = predictions.loss(examples)
 
-                evaluate_metrics[name]["loss"].update_(loss)
-                evaluate_metrics[name]["accuracy"].update_(examples, predictions)
+                evaluate_metrics[dataset_name]["pairs"].update_(predictions, examples)
 
-            for metric_name, metric in evaluate_metrics[name].items():
-                metric.log(tensorboard_logger, name, metric_name, epoch)
+            for metric in evaluate_metrics[dataset_name].values():
+                metric.log_dict(tensorboard_logger, dataset_name, epoch)
 
-            print(lantern.MetricTable(name, evaluate_metrics[name]))
-            log_examples(tensorboard_logger, name, epoch, examples, predictions)
+            print(lantern.MetricTable(dataset_name, evaluate_metrics[dataset_name]))
+            log_examples(tensorboard_logger, dataset_name, epoch, predictions, examples)
 
         early_stopping = early_stopping.score(
-            evaluate_metrics["evaluate_mini_early_stopping"]["accuracy"].compute()
+            evaluate_metrics["evaluate_early_stopping"]["pairs"].compute()["accuracy"]
         )
         if early_stopping.scores_since_improvement == 0:
             torch.save(model.state_dict(), "model.pt")
@@ -114,38 +115,23 @@ def train(config):
 
 
 if __name__ == "__main__":
-    if os.getenv("GUILD_DEBUG") == "1" and os.getenv("GUILD_DEBUG_STARTED") != "1":
-        # configure debugger to set GUILD_DEBUG to "1"
-        os.environ["GUILD_DEBUG_STARTED"] = "1"
-        from guild.commands.run import run
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--eval_batch_size", type=int, default=64)
+    parser.add_argument("--learning_rate", type=float, default=5e-4)
+    parser.add_argument("--max_epochs", type=int, default=20)
+    parser.add_argument("--n_batches_per_epoch", type=int, default=50)
+    parser.add_argument("--patience", type=float, default=10)
+    parser.add_argument("--n_workers", type=int, default=2)
+    parser.add_argument("--cuda", type=bool, choices=[True, False], default=True)
+    args = parser.parse_args()
 
-        run(
-            [
-                "train",
-                "-y",
-                "n_workers=0",
-                "n_batches_per_epoch=2",
-                "--debug-sourcecode=.",
-            ]
-        )
-    else:
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--batch_size", type=int, default=32)
-        parser.add_argument("--eval_batch_size", type=int, default=64)
-        parser.add_argument("--learning_rate", type=float, default=5e-4)
-        parser.add_argument("--max_epochs", type=int, default=20)
-        parser.add_argument("--n_batches_per_epoch", default=50, type=int)
-        parser.add_argument("--patience", type=float, default=10)
-        parser.add_argument("--n_workers", default=2, type=int)
-        args = parser.parse_args()
+    config = vars(args)
+    config.update(
+        seed=31415,
+        run_id=os.getenv("RUN_ID"),
+    )
 
-        config = vars(args)
-        config.update(
-            seed=1,
-            use_cuda=torch.cuda.is_available(),
-            run_id=os.getenv("RUN_ID"),
-        )
+    Path("config.json").write_text(json.dumps(config))
 
-        Path("config.json").write_text(json.dumps(config))
-
-        train(config)
+    train(config)
